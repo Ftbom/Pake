@@ -10,7 +10,7 @@ on:
       platform:
         description: "Platform"
         required: true
-        default: "macos-latest"
+        default: "ubuntu-24.04"
         type: choice
         options:
           - "windows-latest"
@@ -38,11 +38,17 @@ on:
         required: false
         type: boolean
         default: false
+      show_system_tray:
+        description: "Show system tray (input tray icon url to enable)"
+        required: false
       hide_title_bar:
         description: "Hide title bar (macOS only)"
         required: false
         type: boolean
         default: false
+      title:
+        description: "Window title bar text (windows/linux only)"
+        required: false
       multi_arch:
         description: "Universal binary (macOS only)"
         required: false
@@ -52,6 +58,9 @@ on:
         description: "Package formats (comma-separated: deb,appimage,rpm)"
         required: false
         default: "deb"
+      inject_script:
+        description: "js script content to inject"
+        required: false
 
 jobs:
   build:
@@ -98,10 +107,16 @@ jobs:
         timeout-minutes: 25
         shell: bash
         run: |
-          ARGS=("${{ inputs.url }}" "--name" "${{ inputs.name }}")
+          ARGS=("${{ inputs.url }}" "--name" "${{ inputs.name }}" "--enable-drag-drop" "--new-window")
 
           if [ -n "${{ inputs.icon }}" ]; then
             ARGS+=("--icon" "${{ inputs.icon }}")
+          fi
+
+          if [ -n "${{ inputs.show_system_tray }}" ]; then
+            ARGS+=("--show-system-tray")
+            ARGS+=("--system-tray-icon" "${{ inputs.show_system_tray }}")
+            ARGS+=("--hide-on-close" "true")
           fi
 
           if [ -n "${{ inputs.width }}" ]; then
@@ -120,6 +135,10 @@ jobs:
             ARGS+=("--hide-title-bar")
           fi
 
+          if [ -n "${{ inputs.title }}" ]; then
+            ARGS+=("--title" "${{ inputs.title }}")
+          fi
+
           if [ "${{ inputs.multi_arch }}" == "true" ]; then
             ARGS+=("--multi-arch")
           fi
@@ -128,18 +147,31 @@ jobs:
             ARGS+=("--targets" "${{ inputs.targets }}")
           fi
 
+          if [ -n "${{ inputs.inject_script }}" ]; then
+            ARGS+=("--inject" "custom_injected.js")
+          fi
+
+          echo "Save js content to file"
+          printf "%s" "$JS_CONTENT" > custom_injected.js
           echo "Running: node dist/cli.js ${ARGS[@]}"
           node dist/cli.js "${ARGS[@]}"
-
+        env:
+          JS_CONTENT: ${{ inputs.inject_script }}
       - name: Build App (Windows)
         if: runner.os == 'Windows'
         timeout-minutes: 25
         shell: pwsh
         run: |
-          $args = "${{ inputs.url }}", "--name", "${{ inputs.name }}"
+          $args = "${{ inputs.url }}", "--name", "${{ inputs.name }}", "--enable-drag-drop", "--new-window"
 
           if ("${{ inputs.icon }}" -ne "") {
             $args += "--icon", "${{ inputs.icon }}"
+          }
+
+          if ("${{ inputs.show_system_tray }}" -ne "") {
+            $args += "--show-system-tray"
+            $args += "--system-tray-icon", "${{ inputs.show_system_tray }}"
+            $args += "--hide-on-close", "true"
           }
 
           if ("${{ inputs.width }}" -ne "") {
@@ -158,11 +190,22 @@ jobs:
             $args += "--hide-title-bar"
           }
 
+          if ("${{ inputs.title }}" -ne "") {
+            $args += "--title", "${{ inputs.title }}"
+          }
+
+          if ("${{ inputs.inject_script }}" -ne "") {
+            $args += "--inject", "custom_injected.js"
+          }
+
+          Write-Host "Save js content to file"
+          Set-Content -Path "custom_injected.js" -Value $env:JS_CONTENT -NoNewline -Encoding utf8
           Write-Host "Running: node dist/cli.js $($args -join ' ')"
           node dist/cli.js $args
 
           git checkout -- src-tauri/Cargo.lock
-
+        env:
+          JS_CONTENT: ${{ inputs.inject_script }}
       - name: Upload DMG (macOS)
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v6

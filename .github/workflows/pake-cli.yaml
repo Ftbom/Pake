@@ -39,8 +39,10 @@ on:
         type: boolean
         default: false
       show_system_tray:
-        description: "Show system tray (input tray icon url to enable)"
+        description: "Show system tray"
         required: false
+        type: boolean
+        default: false
       hide_title_bar:
         description: "Hide title bar (macOS only)"
         required: false
@@ -113,9 +115,8 @@ jobs:
             ARGS+=("--icon" "${{ inputs.icon }}")
           fi
 
-          if [ -n "${{ inputs.show_system_tray }}" ]; then
+          if [ "${{ inputs.show_system_tray }}" == "true" ]; then
             ARGS+=("--show-system-tray")
-            ARGS+=("--system-tray-icon" "${{ inputs.show_system_tray }}")
             ARGS+=("--hide-on-close" "true")
           fi
 
@@ -168,9 +169,8 @@ jobs:
             $args += "--icon", "${{ inputs.icon }}"
           }
 
-          if ("${{ inputs.show_system_tray }}" -ne "") {
+          if ("${{ inputs.show_system_tray }}" -eq "true") {
             $args += "--show-system-tray"
-            $args += "--system-tray-icon", "${{ inputs.show_system_tray }}"
             $args += "--hide-on-close", "true"
           }
 
